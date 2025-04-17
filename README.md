@@ -1,6 +1,7 @@
-[![Build Status](https://travis-ci.com/lammertb/libcrc.svg?branch=master)](https://travis-ci.com/lammertb/libcrc)
-
 # Libcrc - Multi platform MIT licensed CRC library in C
+This repo contains Libcrc from Lammert Bies. The Makefile has been modified to allow the cross-compilation of the library
+to 32 riscV embedded cores. See [the notes on cross-compiling to riscv32](#notes-on-cross-compiling-to-riscv32) for more informations.
+
 
 Libcrc is a multi platform CRC library which has been under development since
 1999. The original version of the source code has been available on [www.lammertbies.nl](https://www.lammertbies.nl/)
@@ -52,3 +53,57 @@ regularly compiled and checked on the systems mentioned in the following lists.
 |FreeBSD 10.3|clang 3.4.1|
 |OS X El Capitan 10.11.6|Apple LLVM 8.0.0|
 |Windows 7|Visual Studio 2015|
+
+## Notes on cross-compiling to riscv32
+The Makefile has been modified to allow cross-compilation of the library to embedded riscv32 targets (specifically rv32i processors). The cross-compilation requires the installation of the [RISC-V gnu compiler toolchain](https://github.com/riscv-collab/riscv-gnu-toolchain). You can follow the installation instruction from the github repo but replace the configure command by:
+```
+    ./configure --prefix=/opt/riscv-toolchain --with-abi=ilp32 --with-arch=rv32i
+```
+
+Make also sure that `/opt/riscv-toolchain` is writable by your user. Also, make sure that the toolchain installation folder is exported to the RISCV environment variable. For example by adding the following line to your `.bashrc`:
+```
+export RISCV="/opt/riscv-toolchain"
+```
+
+Once the installation of the compiler is done, the cross-compilation of the library may done running the command `make ARCH=riscv32` from the root of the git repo of the library.
+
+### Running the tests when cross-compiling to riscv32
+The library generates a executable that tests the different part of the library. A user may test the library simply by running the executable. When cross-compiling to riscv32, the test executable is also compiled to riscv32 and therefore may not be run locally. However, you may use `spike`, the riscv isa simulator to execute locally the test. To do so, clone the [spike repository](https://github.com/riscv-software-src/riscv-isa-sim). Then, from the root of the spike repository, run the following commands:
+```
+$ sudo apt-get install device-tree-compiler libboost-regex-dev libboost-system-dev
+$ mkdir build
+$ cd build
+$ ../configure --with-target=riscv32-unknown-elf --prefix=$RISCV
+$ make
+$ sudo make install
+```
+
+Then, you must install `riscv-pk`, the kernel used by the `spike`. To do so, clone the [riscv-pk repository](https://github.com/riscv-software-src/riscv-pk). Then, from the root of the `riscv-pk` repository, run the following commands:
+
+```
+$ mkdir build
+$ cd build
+$ ../configure --prefix=$RISCV --host=riscv32-unknown-elf -with-arch=rv32i_zicsr_zifencei
+$ make
+$ make install
+```
+
+You are then ready to run the tests. Go back to the root of the library repository. Then make sure that the compilation has been done:
+```
+make clean
+make ARCH=riscv
+```
+
+Then you can run the tests:
+```
+spike --isa=rv32i_zicsr_zifencei pk testall
+```
+
+Which should give the following output:
+```
+Testing CRC routines: OK
+Testing NMEA checksum: OK
+
+**** All tests succeeded
+
+```

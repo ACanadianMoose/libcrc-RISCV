@@ -19,3 +19,4 @@ tstcrc
 bin/prc.exe
 bin/prc
 *.o
+.vscode/settings.json

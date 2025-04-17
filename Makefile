@@ -68,10 +68,13 @@ TABDIR = tab\\
 TSTDIR = test\\
 EXADIR = examples\\
 
-CC     = cl
+CC = cl
+TARGET_CC     = ${CC}
 LINK   = link
+LINK_TARGET   = ${LINK}
 RM     = del /q
 STRIP  = dir
+TARGET_STRIP  = ${STRIP}
 OBJEXT = .obj
 LIBEXT = .lib
 EXEEXT = .exe
@@ -83,54 +86,87 @@ ARQ    = /NOLOGO
 RANLIB = dir
 CFLAGS = -Ox -Ot -MT -GT -volatile:iso -I${INCDIR} -nologo -J -sdl -Wall -WX \
 	-wd4464 -wd4668 -wd4710 -wd4711 -wd4201 -wd4820
-
+CFLAGS_LIB = ${CFLAGS}
+CFLAGS_GEN = ${CFLAGS}
 else
 
-BINDIR = bin/
-GENDIR = precalc/
-INCDIR = include/
-LIBDIR = lib/
-OBJDIR = obj/
-SRCDIR = src/
-TABDIR = tab/
-TSTDIR = test/
-EXADIR = examples/
+	BINDIR = bin/
+	GENDIR = precalc/
+	INCDIR = include/
+	LIBDIR = lib/
+	OBJDIR = obj/
+	SRCDIR = src/
+	TABDIR = tab/
+	TSTDIR = test/
+	EXADIR = examples/
 
-CC     ?= cc
-LINK   ?= $(CC)
-RM     = /bin/rm -f
-STRIP  = strip
-OBJEXT = .o
-LIBEXT = .a
-EXEEXT =
-OFLAG  = -o
-XFLAG  = -o
-AR     = ar
-ARQC   = qc 
-ARQ    = q
-RANLIB = ranlib
-CFLAGS = -Wall -Wextra -Wstrict-prototypes -Wshadow -Wpointer-arith \
-	-Wcast-qual -Wcast-align -Wwrite-strings -Wredundant-decls \
-	-Wnested-externs -Werror -O3 \
-	-funsigned-char -I${INCDIR}
+
+	RM     = /bin/rm -f
+	OBJEXT = .o
+	LIBEXT = .a
+	EXEEXT =
+	OFLAG  = -o
+	XFLAG  = -o
+	AR     = ar
+	ARQC   = qc 
+	ARQ    = q
+	RANLIB = ranlib
+	
+	# Architecture flag (default to x64)
+	ARCH ?= x64
+
+	# Set tools and flags based on the architecture
+	ifeq ($(ARCH),x64)
+        CC ?= gcc
+		TARGET_CC     ?= $(CC)
+		LINK  ?= $(CC)
+		LINK_TARGET   ?= $(LINK)
+		CFLAGS = -Wall -Wextra -Wstrict-prototypes -Wshadow -Wpointer-arith \
+			-Wcast-qual -Wcast-align -Wwrite-strings -Wredundant-decls \
+			-Wnested-externs -Werror -O3 \
+			-funsigned-char -I${INCDIR}
+		CFLAGS_LIB = $(CFLAGS)
+		CFLAGS_GEN = $(CFLAGS)
+		STRIP  = strip
+		TARGET_STRIP = $(STRIP)
+	else ifeq ($(ARCH),riscv32)
+        CC ?= gcc
+		TARGET_PREFIX ?= riscv32-unknown-elf
+		TARGET_CC     = $(TARGET_PREFIX)-gcc
+        CFLAG_BASE =  -Wall -Wextra -Wstrict-prototypes -Wshadow -Wpointer-arith \
+				-Wcast-qual -Wcast-align -Wwrite-strings -Wredundant-decls \
+				-Wnested-externs -Werror -funsigned-char -I${INCDIR}
+		LINK ?= $(CC)
+		LINK_TARGET   ?= $(TARGET_CC)
+        CFLAGS_GEN = $(CFLAG_BASE) -O3
+
+		CFLAGS = $(CFLAG_BASE) -march=rv32i_zicsr -Os -I${INCDIR}
+
+		CFLAGS_LIB = $(CFLAGS)  -ffreestanding \
+					-fno-builtin -fanalyzer -ffunction-sections -fdata-sections
+		STRIP  = strip
+		TARGET_STRIP = $(TARGET_PREFIX)-strip
+	else
+		$(error Unsupported architecture: $(ARCH))
+	endif
 
 endif
-
+$(info Using compiler: $(TARGET_CC))
+$(info Local compiler: $(CC))
 #
 # Default compile commands for the source files
 #
-
 ${OBJDIR}%${OBJEXT} : ${SRCDIR}%.c
-	${CC} -c ${CFLAGS} ${OFLAG}$@ $<
+	${TARGET_CC} -c ${CFLAGS_LIB} ${OFLAG}$@ $<
 
 ${TSTDIR}${OBJDIR}%${OBJEXT} : ${TSTDIR}%.c
-	${CC} -c ${CFLAGS} ${OFLAG}$@ $<
+	${TARGET_CC} -c ${CFLAGS} ${OFLAG}$@ $<
 
 ${GENDIR}${OBJDIR}%${OBJEXT} : ${GENDIR}%.c
-	${CC} -c ${CFLAGS} ${OFLAG}$@ $<
+	${CC} -c ${CFLAGS_GEN} ${OFLAG}$@ $<
 
 ${EXADIR}${OBJDIR}%${OBJEXT} : ${EXADIR}%.c
-	${CC} -c ${CFLAGS} ${OFLAG}$@ $<
+	${TARGET_CC} -c ${CFLAGS} ${OFLAG}$@ $<
 
 #
 # The make file is used to compile the library, a test program to verify the
@@ -138,7 +174,7 @@ ${EXADIR}${OBJDIR}%${OBJEXT} : ${EXADIR}%.c
 # programs.
 #
 
-all:							\
+all:								\
 	${LIBDIR}libcrc${LIBEXT}			\
 	testall${EXEEXT}				\
 	tstcrc${EXEEXT}
@@ -163,25 +199,25 @@ clean:
 # routines. The extension of the program depends on the operating system used.
 #
 
-testall${EXEEXT} :					\
+testall${EXEEXT} :						\
 		${TSTDIR}${OBJDIR}testall${OBJEXT}	\
 		${TSTDIR}${OBJDIR}testcrc${OBJEXT}	\
 		${TSTDIR}${OBJDIR}testnmea${OBJEXT}	\
 		${LIBDIR}libcrc${LIBEXT}		\
 		Makefile
-	${LINK} ${XFLAG}testall${EXEEXT}		\
+	${LINK_TARGET} ${XFLAG}testall${EXEEXT}		\
 		${TSTDIR}${OBJDIR}testall${OBJEXT}	\
 		${TSTDIR}${OBJDIR}testcrc${OBJEXT}	\
 		${TSTDIR}${OBJDIR}testnmea${OBJEXT}	\
 		${LIBDIR}libcrc${LIBEXT}
-	${STRIP} testall${EXEEXT}
+	${TARGET_STRIP} testall${EXEEXT}
 
 #
 # The prc program is used during compilation to generate the lookup tables
 # for the CRC calculation routines.
 #
 
-${BINDIR}prc${EXEEXT} :					\
+${BINDIR}prc${EXEEXT} :						\
 		${GENDIR}${OBJDIR}precalc${OBJEXT}	\
 		${GENDIR}${OBJDIR}crc32_table${OBJEXT}	\
 		${GENDIR}${OBJDIR}crc64_table${OBJEXT}	\
@@ -197,14 +233,14 @@ ${BINDIR}prc${EXEEXT} :					\
 # of the contents of one or more files.
 #
 
-tstcrc${EXEEXT} :					\
+tstcrc${EXEEXT} :						\
 		${EXADIR}${OBJDIR}tstcrc${OBJEXT}	\
 		${LIBDIR}libcrc${LIBEXT}		\
 		Makefile
-	${LINK}	${XFLAG}tstcrc${EXEEXT}			\
+	${LINK_TARGET}	${XFLAG}tstcrc${EXEEXT}			\
 		${EXADIR}${OBJDIR}tstcrc${OBJEXT}	\
 		${LIBDIR}libcrc${LIBEXT}
-	${STRIP} tstcrc${EXEEXT}
+	${TARGET_STRIP} tstcrc${EXEEXT}
 
 #
 # libcrc is the library which can be linked with other applications. The
