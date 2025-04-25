@@ -91,7 +91,7 @@ $ make install
 You are then ready to run the tests. Go back to the root of the library repository. Then make sure that the compilation has been done:
 ```
 make clean
-make ARCH=riscv
+make ARCH=riscv32
 ```
 
 Then you can run the tests:
